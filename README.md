@@ -15,6 +15,7 @@ config.jsonを作成し以下の内容を記入する必要があります。
 }
 
 server_detailsの入力
+
 https://chromewebstore.google.com/detail/rustpluspy-link-companion/gojhnmnggbnflhdcpcemeahejhcimnlf?hl=en
 から拡張機能をダウンロードしサーバー内でペアリングを行うと以下の情報が表示されます。
 
