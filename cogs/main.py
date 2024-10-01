@@ -1,5 +1,6 @@
 from discord.ext import commands, tasks
 from discord import app_commands, Interaction, Embed
+from rust import rust_client
 import json
 import datetime
 
@@ -7,8 +8,13 @@ class Main(commands.Cog):
     def __init__(self, bot):
         self.config_json = json.load(open('./config.json', 'r'))
         self.channel_id = self.config_json["channel_id"]
+        self.talk_channel_id = self.config_json["talk_channel_id"]
         self.bot = bot
-
+        self.size = 4000
+        self.server_event = []
+        self.dead_list = []
+        self.rust_client = rust_client()
+        
     def dump_config(self):
         with open("./config.json", "w", encoding="utf-8") as f:
             json.dump(self.config_json, f, indent=2)
@@ -18,7 +24,14 @@ class Main(commands.Cog):
         print("[Cogs] Maincogs is ready.")
         if self.channel_id:
             self.channel_message = await self.get_channel_message()
-        self.refresh_message.start()
+        server_details = self.config_json["server_details"]
+        self.rust_client.create_session(server_details["ip"], server_details["port"], server_details["player_id"], server_details["player_token"])
+        result = await self.rust_client.connect_session()
+        if result:
+            self.refresh_message.start()
+            self.event_listener.start()
+        else: print("Failed Server Connection")
+        
     @app_commands.command(name="setup_channel", description="チャンネルを設定します")
     async def setup_channel(self, interaction: Interaction):
         await interaction.response.send_message(f"チャンネルを{interaction.channel.name}に設定しました", ephemeral=True)
@@ -27,6 +40,20 @@ class Main(commands.Cog):
         self.channel_id = interaction.channel_id
         self.channel_message = await self.get_channel_message()
         
+    @app_commands.command(name="setup_talk_channel", description="トークチャンネルを設定します")
+    async def setup_talk_channel(self, interaction: Interaction):
+        await interaction.response.send_message(f"トークチャンネルを{interaction.channel.name}に設定しました", ephemeral=True)
+        self.config_json["talk_channel_id"] = interaction.channel_id
+        self.dump_config()
+        self.talk_channel_id = interaction.channel_id
+
+    @commands.Cog.listener()
+    async def on_message(self, message):
+        if message.author == self.bot.user:
+            return
+        if int(message.channel.id) == self.talk_channel_id:
+            await self.rust_client.send_team_chat(f"[DISCORD] {message.author.global_name}: {message.content}")
+    
     async def get_channel_message(self):
         channel = self.bot.get_channel(self.channel_id)
         messages = channel.history(limit=100)
@@ -35,67 +62,116 @@ class Main(commands.Cog):
                 return message
         message = await channel.send("Not Found Message")
         return message
-
-    @tasks.loop(seconds=3)
-    async def refresh_message(self):
+    
+    @tasks.loop(seconds=1)
+    async def event_listener(self):
         try:
+            #TALKBUFFER
+            talk_channel = self.bot.get_channel(self.talk_channel_id)
+            talk_buffer = self.rust_client.get_talk_buffer()
+            for talk in reversed(talk_buffer):
+                await talk_channel.send(f"{talk["name"]}: {talk["message"]}")
+            #TEAMMEMBERDEATH
+            team_info = await self.rust_client.get_team_info()
+            for member in team_info.members:
+                if member.is_alive is False:
+                    if member.steam_id not in self.dead_list:
+                        self.dead_list.append(member.steam_id)
+                        grid = await self.getGrid(member.x, member.y)
+                        await talk_channel.send(f"{member.name} is dead ({grid})")
+                        await self.rust_client.send_team_chat(f"[RUSTBOT] {member.name} is dead ({grid})")
+                else:
+                    if member.steam_id in self.dead_list:
+                        self.dead_list.remove(member.steam_id)
+        except Exception as e: print("Return Error: "+str(e))
+        
+    @tasks.loop(seconds=10)
+    async def refresh_message(self):
+        try:            
+            #EMBED
             embed = await self.get_embed()
             await self.channel_message.edit(content="", embed=embed)
-
         except Exception as e: print("Return Error: "+str(e))
 
-    async def refresh_data(self):
-        self.server_info = await self.bot.rust_class.get_serverinfo()
-        self.server_time = await self.bot.rust_class.get_servertime()
+    async def get_server_data(self):
+        data = {}
         try:
-            self.server_infoorg = str(self.server_info.players)+"/"+str(self.server_info.max_players)+"("+str(self.server_info.queued_players)+")"
-            self.server_nameorg = self.server_info.name
-            self.server_timeorg = self.server_time.time
-            self.server_sunorg = self.server_time.sunrise+" - "+self.server_time.sunset
-            self.server_event = await self.organize_serverevent()
-            self.server_wipe = datetime.datetime.fromtimestamp(self.server_info.wipe_time)+ datetime.timedelta(days=30)
-        except Exception as e:
-            self.server_infoorg = "Cant get data"
-            self.server_timeorg = "Cant get data"
-            self.server_nameorg = "Cant get data"
-            self.server_sunorg = "Cant get data"
-            self.server_event = "Cant get data"
-            self.server_wipe = "Cant get data"
-            self.attack_heli = "Cant get data"
+            server_info = await self.rust_client.get_server_info()
+            server_time = await self.rust_client.get_server_time()
+            team_info = await self.rust_client.get_team_info()
+            self.size = server_info.size
+            online_member = []
+            offline_member = []
+            team_leader = None
+            for member in team_info.members:
+                if member.steam_id == team_info.leader_steam_id:
+                    team_leader = member.name
+                if member.is_online:
+                    online_member.append(f"{member.name}({await self.getGrid(member.x, member.y)})")
+                else:
+                    offline_member.append(f"{member.name}({await self.getGrid(member.x, member.y)})")
+            data["server_name"] = server_info.name
+            data["server_players"] = str(server_info.players)+"/"+str(server_info.max_players)+"("+str(server_info.queued_players)+")"
+            data["server_time"] = server_time.time
+            data["server_sun_time"] = server_time.sunrise+" - "+server_time.sunset
+            data["team_leader"] = team_leader
+            data["online_member"] = online_member
+            data["offline_member"] = offline_member
             
-    async def organize_serverevent(self):
-        server_event = await self.bot.rust_class.get_serverevent()
-        event_strlist = ""
-        event_list = []
-        dt_now = datetime.datetime.now()
-        dt_after1 = datetime.datetime.now()+datetime.timedelta(hours=3)
-        for event in server_event:
-            event_list.append(str(event.type))
-            if event.type == 4:
-                event_strlist = event_strlist+"CH-47, "
-            if event.type == 5:
-                event_strlist = event_strlist+"貨物船, "
-            if event.type == 8:
-                event_strlist = event_strlist+"アタックヘリコプター, "
-                self.now_attack_heli = True
-        if "8" not in event_list:
-            if self.now_attack_heli == True:
-                if event.type != 8:
-                    self.now_attack_heli = False
-                    self.attack_heli = "アタヘリ爆発 "+str(dt_now.strftime('%H:%M:%S'))+" 再沸き "+str(dt_after1.strftime('%H:%M:%S'))
-        if event_strlist == "":
-            return "No Event"
-        return event_strlist
-                
+            server_markers = await self.rust_client.get_server_markers()
+            server_events = []
+            for marker in server_markers:
+                if marker.type == 2:
+                    server_events.append(f"Explosion({await self.getGrid(marker.x, marker.y)})")
+                elif marker.type == 4:
+                    server_events.append(f"CH-47({await self.getGrid(marker.x, marker.y)})")
+                elif marker.type == 5:
+                    server_events.append(f"CargoShip({await self.getGrid(marker.x, marker.y)})")
+                elif marker.type == 6:
+                    server_events.append(f"Crate({await self.getGrid(marker.x, marker.y)})")
+                elif marker.type == 8:
+                    server_events.append(f"PatrolHelicopter({await self.getGrid(marker.x, marker.y)})")
+            data["server_events"] = server_events
+        except: return 
+        return data
+
+    async def getGrid(self, loc_x, loc_y):
+        text = ""
+        x = int(loc_x/146.28571428571428)
+        y = int((self.size-loc_y)/146.28571428571428)
+
+        x1 = int(x/26)
+        x2 = x % 26
+
+        if x1 > 0:
+            for x in range(x1):
+                text += chr(65+x)
+
+        text += chr(65+x2) + str(y)
+
+        return str(text)
+
     async def get_embed(self):
-        await self.refresh_data()
-        embed = Embed(title=self.server_nameorg,description="")
-        embed.add_field(name="プレイヤー数 現在/最大(待機)", value=self.server_infoorg,inline=False)
-        embed.add_field(name="サーバー内時間",value=self.server_timeorg,inline=False)
-        embed.add_field(name="日の出 - 日没",value=self.server_sunorg,inline=False)
-        embed.add_field(name="現在のイベント",value=self.server_event,inline=False)
-        embed.add_field(name="ワイプ",value=self.server_wipe,inline=False)
-        embed.add_field(name="アタックヘリ", value=self.attack_heli,inline=False)
-        return embed
+        data = await self.get_server_data()
+        if data:
+            self.retry_count = 0
+            embed = Embed(title=data["server_name"],description="")
+            embed.add_field(name="プレイヤー数 現在/最大(待機)", value=data["server_players"],inline=False)
+            embed.add_field(name="サーバー内時間",value=data["server_time"],inline=False)
+            embed.add_field(name="日の出 - 日没",value=data["server_sun_time"],inline=False)
+            embed.add_field(name="サーバーイベント", value=', '.join(map(str, data["server_events"])), inline=False)
+            embed.add_field(name="チームリーダー", value=data["team_leader"], inline=False)
+            embed.add_field(name="オンライン", value=', '.join(map(str, data["online_member"])), inline=False)
+            embed.add_field(name="オフライン", value=', '.join(map(str, data["offline_member"])), inline=False)
+            for event in data["server_events"]:
+                if event not in self.server_event:
+                    await self.rust_client.send_team_chat(f"[RUSTBOT] 新しいイベント: {event}")
+            self.server_event = data["server_events"]
+            return embed
+        else:
+            self.retry_count += 1
+            embed = Embed(title=f"接続に失敗しました。({self.retry_count} 回目)",description="")
+            return embed
+
 async def setup(bot):    
     await bot.add_cog(Main(bot))
