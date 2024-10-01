@@ -1,5 +1,6 @@
 初期設定
 config.jsonを作成し以下の内容を記入する必要があります。
+
 {
   "token": "DISCORDBOTTOKEN",
   "guild_id": "GUILDID",
@@ -12,9 +13,11 @@ config.jsonを作成し以下の内容を記入する必要があります。
     "player_token": "PlayerToken"
   }
 }
+
 server_detailsの入力
 https://chromewebstore.google.com/detail/rustpluspy-link-companion/gojhnmnggbnflhdcpcemeahejhcimnlf?hl=en
 から拡張機能をダウンロードしサーバー内でペアリングを行うと以下の情報が表示されます。
+
 {
     "desc": "",
     "id": "",
@@ -28,6 +31,7 @@ https://chromewebstore.google.com/detail/rustpluspy-link-companion/gojhnmnggbnfl
     "type": "",
     "url": ""
 }
+
 Step2 サーバー情報を送る先をDiscordにて指定する
 指定したいチャンネルで /setup_channel
 
