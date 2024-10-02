@@ -36,6 +36,7 @@ class rust_client():
         await self.rust_socket.send_team_message(content)
 
     talk_buffer = []
+    #チームチャットをbufferに保存します。
     @ChatEvent(server_details)
     async def chat(self, event: ChatEventPayload):
         data = {
@@ -44,6 +45,8 @@ class rust_client():
         }
         self.talk_buffer.append(data)
         
+    #保存しているbufferを返します。
+    #またこの際bufferの中身はすべて削除されます。
     def get_talk_buffer(self):
         talk_buffer = self.talk_buffer
         self.talk_buffer = []
