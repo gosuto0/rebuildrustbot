@@ -167,12 +167,13 @@ class Main(commands.Cog):
             talk_channel = self.bot.get_channel(self.talk_channel_id)
             embed = Embed(title=data["server_name"],description="")
             embed.add_field(name="プレイヤー数 現在/最大(待機)", value=data["server_players"],inline=False)
-            embed.add_field(name="サーバー内時間",value=data["server_time"],inline=False)
-            embed.add_field(name="日の出 - 日没",value=data["server_sun_time"],inline=False)
+            embed.add_field(name="サーバー内時間",value=data["server_time"],inline=True)
+            embed.add_field(name="日の出 - 日没",value=data["server_sun_time"],inline=True)
             embed.add_field(name="サーバーイベント", value=', '.join(map(str, data["server_events"])), inline=False)
             embed.add_field(name="チームリーダー", value=data["team_leader"], inline=False)
             embed.add_field(name="オンライン", value=', '.join(map(str, data["online_member"])), inline=False)
             embed.add_field(name="オフライン", value=', '.join(map(str, data["offline_member"])), inline=False)
+            embed.add_field(name="更新時間", value=datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S'), inline=False)
             for event in data["server_events"]:
                 if event not in self.server_event:
                     await talk_channel.send(f"新しいイベント: {event}")
