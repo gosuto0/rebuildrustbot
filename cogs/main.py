@@ -68,12 +68,12 @@ class Main(commands.Cog):
     @tasks.loop(seconds=1)
     async def event_listener(self):
         try:
-            #一秒おきにTeamChatを取得しDiscordに送信します。
+            # 一秒おきにTeamChatを取得しDiscordに送信します。
             talk_channel = self.bot.get_channel(self.talk_channel_id)
             talk_buffer = self.rust_client.get_talk_buffer()
             for talk in reversed(talk_buffer):
-                await talk_channel.send(f"{talk["name"]}: {talk["message"]}")
-            #チームメンバーが死んださいにメッセージを送信します
+                await talk_channel.send(f"{talk['name']}: {talk['message']}")
+            # チームメンバーが死んださいにメッセージを送信します
             team_info = await self.rust_client.get_team_info()
             for member in team_info.members:
                 if member.is_alive is False:
@@ -85,8 +85,9 @@ class Main(commands.Cog):
                 else:
                     if member.steam_id in self.dead_list:
                         self.dead_list.remove(member.steam_id)
-        except Exception as e: print("Return Error: "+str(e))
-        
+        except Exception as e:
+            print("Return Error: " + str(e))
+
     @tasks.loop(seconds=10)
     async def refresh_message(self):
         try:            
@@ -163,6 +164,7 @@ class Main(commands.Cog):
         data = await self.get_server_data()
         if data:
             self.retry_count = 0
+            talk_channel = self.bot.get_channel(self.talk_channel_id)
             embed = Embed(title=data["server_name"],description="")
             embed.add_field(name="プレイヤー数 現在/最大(待機)", value=data["server_players"],inline=False)
             embed.add_field(name="サーバー内時間",value=data["server_time"],inline=False)
@@ -173,7 +175,7 @@ class Main(commands.Cog):
             embed.add_field(name="オフライン", value=', '.join(map(str, data["offline_member"])), inline=False)
             for event in data["server_events"]:
                 if event not in self.server_event:
-                    await self.rust_client.send_team_chat(f"[RUSTBOT] 新しいイベント: {event}")
+                    await talk_channel.send(f"新しいイベント: {event}")
             self.server_event = data["server_events"]
             return embed
         else:
