@@ -13,7 +13,6 @@ class Main(commands.Cog):
         self.size = 4000
         self.server_event = []
         self.dead_list = []
-        self.rust_client = rust_client()
         
     def dump_config(self):
         with open("./config.json", "w", encoding="utf-8") as f:
@@ -25,7 +24,7 @@ class Main(commands.Cog):
         if self.channel_id:
             self.channel_message = await self.get_channel_message()
         server_details = self.config_json["server_details"]
-        self.rust_client.create_session(server_details["ip"], server_details["port"], server_details["player_id"], server_details["player_token"])
+        self.rust_client = rust_client(server_details["ip"], server_details["port"], server_details["player_id"], server_details["player_token"])
         result = await self.rust_client.connect_session()
         if result:
             self.refresh_message.start()
