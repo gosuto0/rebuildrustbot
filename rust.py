@@ -44,6 +44,8 @@ class rust_client:
     async def send_team_chat(self, content):
         await self.rust_socket.send_team_message(content)
         
+    #保存しているbufferを返します。
+    #またこの際bufferの中身はすべて削除されます。
     def get_talk_buffer(self):
         talk_buffer = self.talk_buffer
         self.talk_buffer = []

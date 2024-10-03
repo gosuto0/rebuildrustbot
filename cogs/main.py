@@ -27,6 +27,7 @@ class Main(commands.Cog):
         self.rust_client = rust_client(server_details["ip"], server_details["port"], server_details["player_id"], server_details["player_token"])
         result = await self.rust_client.connect_session()
         if result:
+            #定期リスナーを実行します。
             self.refresh_message.start()
             self.event_listener.start()
         else: print("Failed Server Connection")
@@ -50,6 +51,7 @@ class Main(commands.Cog):
     async def on_message(self, message):
         if message.author == self.bot.user:
             return
+        #DiscordChatに書かれた内容をチームチャットに送信します。
         if int(message.channel.id) == self.talk_channel_id:
             await self.rust_client.send_team_chat(f"[DISCORD] {message.author.global_name}: {message.content}")
     
@@ -65,12 +67,12 @@ class Main(commands.Cog):
     @tasks.loop(seconds=1)
     async def event_listener(self):
         try:
-            #TALKBUFFER
+            # 一秒おきにTeamChatを取得しDiscordに送信します。
             talk_channel = self.bot.get_channel(self.talk_channel_id)
             talk_buffer = self.rust_client.get_talk_buffer()
             for talk in reversed(talk_buffer):
-                await talk_channel.send(f"{talk["name"]}: {talk["message"]}")
-            #TEAMMEMBERDEATH
+                await talk_channel.send(f"{talk['name']}: {talk['message']}")
+            # チームメンバーが死んださいにメッセージを送信します
             team_info = await self.rust_client.get_team_info()
             for member in team_info.members:
                 if member.is_alive is False:
@@ -82,12 +84,13 @@ class Main(commands.Cog):
                 else:
                     if member.steam_id in self.dead_list:
                         self.dead_list.remove(member.steam_id)
-        except Exception as e: print("Return Error: "+str(e))
-        
+        except Exception as e:
+            print("Return Error: " + str(e))
+
     @tasks.loop(seconds=10)
     async def refresh_message(self):
         try:            
-            #EMBED
+            #10秒おきにデータを取得しEmbedを更新します。
             embed = await self.get_embed()
             await self.channel_message.edit(content="", embed=embed)
         except Exception as e: print("Return Error: "+str(e))
@@ -98,7 +101,11 @@ class Main(commands.Cog):
             server_info = await self.rust_client.get_server_info()
             server_time = await self.rust_client.get_server_time()
             team_info = await self.rust_client.get_team_info()
+            
+            #サーバーMapサイズを取得します(Get mapsize)
             self.size = server_info.size
+            
+            #チーム情報を取得します(Get team info)
             online_member = []
             offline_member = []
             team_leader = None
@@ -109,14 +116,8 @@ class Main(commands.Cog):
                     online_member.append(f"{member.name}({await self.getGrid(member.x, member.y)})")
                 else:
                     offline_member.append(f"{member.name}({await self.getGrid(member.x, member.y)})")
-            data["server_name"] = server_info.name
-            data["server_players"] = str(server_info.players)+"/"+str(server_info.max_players)+"("+str(server_info.queued_players)+")"
-            data["server_time"] = server_time.time
-            data["server_sun_time"] = server_time.sunrise+" - "+server_time.sunset
-            data["team_leader"] = team_leader
-            data["online_member"] = online_member
-            data["offline_member"] = offline_member
-            
+                    
+            #サーバーイベントを取得します(Get Server event)
             server_markers = await self.rust_client.get_server_markers()
             server_events = []
             for marker in server_markers:
@@ -130,6 +131,14 @@ class Main(commands.Cog):
                     server_events.append(f"Crate({await self.getGrid(marker.x, marker.y)})")
                 elif marker.type == 8:
                     server_events.append(f"PatrolHelicopter({await self.getGrid(marker.x, marker.y)})")
+                    
+            data["server_name"] = server_info.name
+            data["server_players"] = str(server_info.players)+"/"+str(server_info.max_players)+"("+str(server_info.queued_players)+")"
+            data["server_time"] = server_time.time
+            data["server_sun_time"] = server_time.sunrise+" - "+server_time.sunset
+            data["team_leader"] = team_leader
+            data["online_member"] = online_member
+            data["offline_member"] = offline_member
             data["server_events"] = server_events
         except: return 
         return data
@@ -154,17 +163,19 @@ class Main(commands.Cog):
         data = await self.get_server_data()
         if data:
             self.retry_count = 0
+            talk_channel = self.bot.get_channel(self.talk_channel_id)
             embed = Embed(title=data["server_name"],description="")
             embed.add_field(name="プレイヤー数 現在/最大(待機)", value=data["server_players"],inline=False)
-            embed.add_field(name="サーバー内時間",value=data["server_time"],inline=False)
-            embed.add_field(name="日の出 - 日没",value=data["server_sun_time"],inline=False)
+            embed.add_field(name="サーバー内時間",value=data["server_time"],inline=True)
+            embed.add_field(name="日の出 - 日没",value=data["server_sun_time"],inline=True)
             embed.add_field(name="サーバーイベント", value=', '.join(map(str, data["server_events"])), inline=False)
             embed.add_field(name="チームリーダー", value=data["team_leader"], inline=False)
             embed.add_field(name="オンライン", value=', '.join(map(str, data["online_member"])), inline=False)
             embed.add_field(name="オフライン", value=', '.join(map(str, data["offline_member"])), inline=False)
+            embed.add_field(name="更新時間", value=datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S'), inline=False)
             for event in data["server_events"]:
                 if event not in self.server_event:
-                    await self.rust_client.send_team_chat(f"[RUSTBOT] 新しいイベント: {event}")
+                    await talk_channel.send(f"新しいイベント: {event}")
             self.server_event = data["server_events"]
             return embed
         else:
