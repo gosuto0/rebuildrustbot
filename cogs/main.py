@@ -123,8 +123,8 @@ class Main(commands.Cog):
             for marker in server_markers:
                 if marker.type == 2:
                     server_events.append(f"Explosion({await self.getGrid(marker.x, marker.y)})")
-                elif marker.type == 4:
-                    server_events.append(f"CH-47({await self.getGrid(marker.x, marker.y)})")
+                # elif marker.type == 4:
+                #     server_events.append(f"CH-47({await self.getGrid(marker.x, marker.y)})")
                 elif marker.type == 5:
                     server_events.append(f"CargoShip({await self.getGrid(marker.x, marker.y)})")
                 elif marker.type == 6:
@@ -175,7 +175,8 @@ class Main(commands.Cog):
             embed.add_field(name="更新時間", value=datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S'), inline=False)
             for event in data["server_events"]:
                 if event not in self.server_event:
-                    await talk_channel.send(f"新しいイベント: {event}")
+                    await talk_channel.send(f"[RUSTBOT] {event}")
+                    await self.rust_client.send_team_chat(f"[RUSTBOT] {event}")
             self.server_event = data["server_events"]
             return embed
         else:
