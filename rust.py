@@ -3,13 +3,13 @@ from rustplus import ServerDetails
 from rustplus import EntityEventPayload, TeamEventPayload, ChatEventPayload, ProtobufEvent, ChatEvent, EntityEvent, TeamEvent
 import deepl
 
-class rust_client:    
+class rust_client:
     def __init__(self, ip:str, port:str, player_id:str, player_token:str):
         self.talk_buffer = []
         server_details = ServerDetails(ip=ip, port=port, player_id=player_id, player_token=player_token)
         self.rust_socket = RustSocket(server_details=server_details)
         self.translator = deepl.Translator("dc062da7-fedd-4a04-a86e-0acf9ff6fe29:fx")
-        
+
         @ChatEvent(server_details)
         async def chat(event: ChatEventPayload):
             data = {
@@ -33,11 +33,14 @@ class rust_client:
                     await self.send_team_chat(f"[RUSTBOT] US: {result.text}")
                     data["message"] = result.text + " [TRANSED]"
                     self.talk_buffer.append(data)
+                elif "!pop" in event.message.message:
+                    server_info = await self.get_server_info()
+                    await self.send_team_chat(f"[RUSTBOT] Online Players: {server_info.players}/{server_info.max_players}")
                 elif "!help" in event.message.message or "!command" in event.message.message or "!commands" in event.message.message:
-                    await self.send_team_chat(f"[RUSTBOT] COMMANDS: !time, !ja text, !us text")
+                    await self.send_team_chat(f"[RUSTBOT] COMMANDS: !time, !ja text, !us text, !pop")
                 else:
                     self.talk_buffer.append(data)
-                
+
     async def connect_session(self) -> bool:
         if self.rust_socket:
             await self.rust_socket.connect()
@@ -52,19 +55,19 @@ class rust_client:
 
     async def get_server_info(self):
         return await self.rust_socket.get_info()
-    
+
     async def get_server_time(self):
         return await self.rust_socket.get_time()
-    
+
     async def get_server_markers(self):
         return await self.rust_socket.get_markers()
 
     async def get_team_info(self):
         return await self.rust_socket.get_team_info()
-    
+
     async def send_team_chat(self, content):
         await self.rust_socket.send_team_message(content)
-        
+
     #保存しているbufferを返します。
     #またこの際bufferの中身はすべて削除されます。
     def get_talk_buffer(self):
