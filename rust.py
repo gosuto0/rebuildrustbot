@@ -33,6 +33,18 @@ class rust_client:
                     await self.send_team_chat(f"[RUSTBOT] US: {result.text}")
                     data["message"] = result.text + " [TRANSED]"
                     self.talk_buffer.append(data)
+                elif "!member" in event.message.message:
+                    team_info = await self.get_team_info()
+                    online_member = []
+                    offline_member = []
+                    for member in team_info.members:
+                        if member.steam_id == team_info.leader_steam_id:
+                            team_leader = member.name
+                        if member.is_online:
+                            online_member.append(f"{member.name}")
+                        else:
+                            offline_member.append(f"{member.name}")
+                    await self.send_team_chat(f"[RUSTBOT] Team Online: {len(online_member)} Offline: {', '.join(map(str, offline_member))}")
                 elif "!help" in event.message.message or "!command" in event.message.message or "!commands" in event.message.message:
                     await self.send_team_chat(f"[RUSTBOT] COMMANDS: !time, !ja text, !us text")
                 else:
