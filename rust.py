@@ -3,8 +3,9 @@ from rustplus import ServerDetails
 from rustplus import EntityEventPayload, TeamEventPayload, ChatEventPayload, ProtobufEvent, ChatEvent, EntityEvent, TeamEvent
 import deepl
 
+
 class rust_client:
-    def __init__(self, ip:str, port:str, player_id:str, player_token:str):
+    def __init__(self, ip: str, port: str, player_id: str, player_token: str):
         self.talk_buffer = []
         server_details = ServerDetails(ip=ip, port=port, player_id=player_id, player_token=player_token)
         self.rust_socket = RustSocket(server_details=server_details)
@@ -17,9 +18,9 @@ class rust_client:
                 "message": event.message.message
             }
             if "[DISCORD]" not in event.message.message and "[RUSTBOT]" not in event.message.message:
-                if "!time" in event.message.message:
+                if "!time" in event.message.message or "!t" in event.message.message:
                     server_time = await self.get_server_time()
-                    await self.send_team_chat(f"[RUSTBOT] TIME: {server_time.time}")
+                    await self.send_team_chat(f"[RUSTBOT] TIME: {server_time.time}, 日出: {server_time.sunrise}, 日没: {server_time.sunset}")
                 elif "!ja" in event.message.message:
                     message = event.message.message.replace("!ja ", "")
                     result = self.translator.translate_text(message, target_lang="JA")
@@ -49,7 +50,7 @@ class rust_client:
                             offline_member.append(f"{member.name}")
                     await self.send_team_chat(f"[RUSTBOT] Team Online: {len(online_member)} Offline: {', '.join(map(str, offline_member))}")
                 elif "!help" in event.message.message or "!command" in event.message.message or "!commands" in event.message.message:
-                    await self.send_team_chat(f"[RUSTBOT] COMMANDS: !time, !ja text, !us text, !pop")
+                    await self.send_team_chat(f"[RUSTBOT] COMMANDS: !time(!t), !ja text, !us text, !pop, !member")
                 else:
                     self.talk_buffer.append(data)
 
@@ -57,13 +58,15 @@ class rust_client:
         if self.rust_socket:
             await self.rust_socket.connect()
             return True
-        else: return False
+        else:
+            return False
 
     async def disconnect_session(self) -> bool:
         if self.rust_socket:
             await self.rust_socket.disconnect()
             return True
-        else: return False
+        else:
+            return False
 
     async def get_server_info(self):
         return await self.rust_socket.get_info()
@@ -80,8 +83,8 @@ class rust_client:
     async def send_team_chat(self, content):
         await self.rust_socket.send_team_message(content)
 
-    #保存しているbufferを返します。
-    #またこの際bufferの中身はすべて削除されます。
+    # 保存しているbufferを返します。
+    # またこの際bufferの中身はすべて削除されます。
     def get_talk_buffer(self):
         talk_buffer = self.talk_buffer
         self.talk_buffer = []
