@@ -195,8 +195,8 @@ class Main(commands.Cog):
         else:
             self.retry_count += 1
             embed = Embed(title=f"接続に失敗しました。({self.retry_count} 回目)", description="")
+            await self.rust_client.connect_session()
             return embed
-
 
 async def setup(bot):
     await bot.add_cog(Main(bot))
