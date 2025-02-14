@@ -28,14 +28,6 @@ bot = DiscordBot()
 async def on_ready():
     print("Logged!")
 
-# @bot.event
-# async def on_message(message):
-#     if message.author.bot:
-#         return 
-#     if message.content == ">hot_reload":
-#         for cog in COGS:
-#             await bot.reload_extension(cog)
-#         await message.channel.send("Hot reloaded!")
         
 if __name__ == "__main__":
     async def boot():

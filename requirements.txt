@@ -1,0 +1,4 @@
+discord.py
+rustplus
+asyncio
+deepl
