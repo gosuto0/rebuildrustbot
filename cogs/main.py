@@ -149,7 +149,7 @@ class Main(commands.Cog):
                     offline_members.append(member_info)
 
             server_markers = await self.rust_client.get_server_markers()
-            events = self.event_handler.handle_server_events(
+            events = await self.event_handler.handle_server_events(
                 server_markers,
                 self.get_grid
             )
